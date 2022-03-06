@@ -5,8 +5,8 @@ import config
 
 # class Point for keeping coordinates? To draw winning line
 class Point:
-    def __init__(self, coords: tuple[int, int], indices: tuple[int, int], mark: str):
-        self.x, self.y = coords
+    def __init__(self, indices: tuple[int, int], mark: str):
+        # self.x, self.y = coords
         self.x_idx, self.y_idx = indices
         self.mark = mark
 
@@ -24,7 +24,7 @@ class Game:
     __line_x_locations = [0,]
     __line_y_locations = [0,]
 
-    def __init__(self, scr_width, scr_height, pl_mark="X", size=3):
+    def __init__(self, scr_width, scr_height, pl_mark="O", size=3):
         self.size = size
         self.board = [["" for i in range(self.size)] for j in range(self.size)]
         self.player = pl_mark
@@ -83,33 +83,49 @@ class Game:
         h_counter = 0
         v_counter = 0
         d_counter = 0
+        self.__victory_line_points = []
+        for i in range(len(self.board)):
+            for j in range(1, len(self.board)):
+                self.__victory_line_points.append(self.board[i][j-1])
+                if isinstance(self.board[i][j-1], Point) and isinstance(self.board[i][j], Point): # horizontal victory
+                    h_counter+=1
+                    if h_counter==self.size-1:
+                        self.__victory_line_points.append(self.board[i][j])
+                        return True
+            self.__victory_line_points = []
+            h_counter = 0
+
 
         for i in range(len(self.board)):
             for j in range(1, len(self.board)):
-                if self.board[i][j-1]==self.board[i][j]==self.player: # horizontal victory
-                    h_counter+=1
-                if self.board[j-1][i]==self.board[j][i]==self.player: # vertical victory
-
+                self.__victory_line_points.append(self.board[j-1][i])
+                if isinstance(self.board[j-1][i], Point) and isinstance(self.board[j][i], Point): # vertical victory
                     v_counter+=1
-            if h_counter==self.size-1 or v_counter==self.size-1:
-                return True
-            h_counter = 0
+                    if v_counter==self.size-1:
+                        self.__victory_line_points.append(self.board[j][i])
+                        return True
+            self.__victory_line_points = []
             v_counter = 0
+
 
         # diagonals
         for j in range(1, len(self.board)):
-            if self.board[j-1][j-1]==self.board[j][j]==self.player:
+            self.__victory_line_points.append(self.board[j-1][j-1])
+            if isinstance(self.board[j-1][j-1], Point) and isinstance(self.board[j][j], Point):
                 d_counter+=1
-        if d_counter==self.size-1:
-            return True
+                if d_counter==self.size-1:
+                    self.__victory_line_points.append(self.board[j][j])
+                    return True
+        self.__victory_line_points = []
 
         d_counter = 0
         for j in range(1, len(self.board)):
-            if self.board[j-1][len(self.board) - j]==self.board[j][len(self.board) -j-1]==self.player:
+            self.__victory_line_points.append(self.board[j-1][len(self.board) - j])
+            if isinstance(self.board[j-1][len(self.board) - j], Point) and isinstance(self.board[j][len(self.board) - j - 1], Point):
                 d_counter+=1
-        if d_counter==self.size-1:
-            return True
-
+                if d_counter==self.size-1:
+                    self.__victory_line_points.append(self.board[j][len(self.board) - j - 1])
+                    return True
         return False
 
     def __convert_to_indices(self, x, y):
@@ -136,17 +152,18 @@ class Game:
         return (x_idx, y_idx)
     def __handle_logic(self, idxs):
         x, y = idxs
-        self.board[x][y] = self.player
+        self.board[x][y] = Point((x,y), self.player)
         print(self.board)
         return self.check_victory()
-    def __draw_victory_line(self, x, y):
+    def __draw_victory_line(self):
         x_middle = Game.__line_x_locations[1] * 0.5
         y_middle = Game.__line_y_locations[1] * 0.5
-        x1 = x + x_middle
-        y1 = y + y_middle
-        x2 = self.dimensions[0] - x_middle
-        y2 = self.dimensions[1] - y_middle
-        self.__draw_line(self.win, Game.RED, x1, y1, x2, y2)
+        y1 = Game.__line_x_locations[self.__victory_line_points[0].x_idx] + y_middle
+        x1 = Game.__line_y_locations[self.__victory_line_points[0].y_idx] + x_middle
+
+        y2 = Game.__line_x_locations[self.__victory_line_points[-1].x_idx] + y_middle
+        x2 = Game.__line_y_locations[self.__victory_line_points[-1].y_idx] + x_middle
+        self.__draw_line(self.win, Game.RED, x1, y1, x2, y2, 10)
     def make_move(self, x, y):
         for idx, el in enumerate(Game.__line_x_locations):
             if el>=x:
@@ -160,7 +177,7 @@ class Game:
         victory = self.__handle_logic(idxs)
         if victory:
             print("Victory")
-            self.__draw_victory_line(x, y)
+            self.__draw_victory_line()
         self.__draw_X(self.win, Game.WHITE, x, y)
         # self.__draw_O(self.win, Game.WHITE, x, y)
 
