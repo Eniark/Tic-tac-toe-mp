@@ -1,27 +1,27 @@
 import socket
 
 class Network:
-    def __init__(self, ip, port, ENC_FORMAT = 'UTF-8'):
+    def __init__(self, ip='192.168.0.113', port=5555, ENC_FORMAT = 'UTF-8'):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server = ip
         self.port = port
         self.addr = (self.server, self.port)
-        self.__first_connection = self.connect()
+        self.player = self.connect()
         self.ENC_FORMAT = ENC_FORMAT
 
-    def getPl(self):
-        return self.__first_connection
+    def getInitialData(self):
+        return self.player
 
     def connect(self):
         try:
             self.client.connect(self.addr)
-            return self.client.recv(2048)
+            return self.client.recv(2048).decode()
         except socket.error:
             pass
 
-    def send(self, data: str):
+    def send(self, data):
         try:
             self.client.send(data.encode(self.ENC_FORMAT))
             return self.client.recv(2048).decode(self.ENC_FORMAT)
-        except socket.error:
-            pass
+        except socket.error as e:
+            print(e)
