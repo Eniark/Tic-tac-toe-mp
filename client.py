@@ -1,9 +1,9 @@
+import threading
 import pygame
-from pprint import pprint
 import config
 from network import Network
 
-# class for the game
+# class for the screen
 class GameScreen:
     BLACK = (0,0,0)
     WHITE = (255,255,255)
@@ -14,7 +14,7 @@ class GameScreen:
     __line_x_locations = [0,]
     __line_y_locations = [0,]
 
-    def __init__(self, scr_width, scr_height, pl_mark="X", size=3):
+    def __init__(self, scr_width, scr_height, pl_mark="X", size=config.DEFAULT_SIZE):
         self.size = size
         self.player = pl_mark
         self.is_victorious = False
@@ -36,8 +36,6 @@ class GameScreen:
         y1 = y + self.__y_one_fourths
         x2 = x + self.__x_three_fourths
         y2 = y + self.__y_three_fourths
-        print(x1, y1)
-        print(x2, y2)
         pygame.draw.line(win, color, (x1,y1), (x2,y2), line_width)
         pygame.draw.line(win, color, (x2, y1), (x1, y2), line_width)
 
@@ -71,65 +69,22 @@ class GameScreen:
         GameScreen.__line_y_locations.append(self.dimensions[1])
 
 
-    # def check_victory(self):
-    #     h_counter = 0
-    #     v_counter = 0
-    #     d_counter = 0
-    #     self.__victory_line_points = []
-    #     for i in range(len(self.board)):
-    #         for j in range(1, len(self.board)):
-    #             self.__victory_line_points.append(self.board[i][j-1])
-    #             if isinstance(self.board[i][j-1], Point) and isinstance(self.board[i][j], Point): # horizontal victory
-    #                 h_counter+=1
-    #                 if h_counter==self.size-1:
-    #                     self.__victory_line_points.append(self.board[i][j])
-    #                     return True
-    #         self.__victory_line_points = []
-    #         h_counter = 0
-    #
-    #
-    #     for i in range(len(self.board)):
-    #         for j in range(1, len(self.board)):
-    #             self.__victory_line_points.append(self.board[j-1][i])
-    #             if isinstance(self.board[j-1][i], Point) and isinstance(self.board[j][i], Point): # vertical victory
-    #                 v_counter+=1
-    #                 if v_counter==self.size-1:
-    #                     self.__victory_line_points.append(self.board[j][i])
-    #                     return True
-    #         self.__victory_line_points = []
-    #         v_counter = 0
-    #
-    #
-    #     # diagonals
-    #     for j in range(1, len(self.board)):
-    #         self.__victory_line_points.append(self.board[j-1][j-1])
-    #         if isinstance(self.board[j-1][j-1], Point) and isinstance(self.board[j][j], Point):
-    #             d_counter+=1
-    #             if d_counter==self.size-1:
-    #                 self.__victory_line_points.append(self.board[j][j])
-    #                 return True
-    #     self.__victory_line_points = []
-    #
-    #     d_counter = 0
-    #     for j in range(1, len(self.board)):
-    #         self.__victory_line_points.append(self.board[j-1][len(self.board) - j])
-    #         if isinstance(self.board[j-1][len(self.board) - j], Point) and isinstance(self.board[j][len(self.board) - j - 1], Point):
-    #             d_counter+=1
-    #             if d_counter==self.size-1:
-    #                 self.__victory_line_points.append(self.board[j][len(self.board) - j - 1])
-    #                 return True
-    #     return False
-
-
     def __find_topleft_border(self, x, y):
+        print(GameScreen.__line_x_locations)
+        print(GameScreen.__line_y_locations)
+        print(type(x), type(y))
         for idx, el in enumerate(GameScreen.__line_x_locations):
             if el>=x:
                 x = GameScreen.__line_x_locations[idx-1]
+                print(f'found X.. {x}')
                 break
         for idx, el in enumerate(GameScreen.__line_y_locations):
             if el>=y:
                 y = GameScreen.__line_x_locations[idx-1]
+                print(f'found y.. {y}')
+
                 break
+
         return (x, y)
     def convert_to_indices(self, x, y):
         step_x = GameScreen.__line_x_locations[1]
@@ -153,11 +108,7 @@ class GameScreen:
 
         x_idx, y_idx = y_idx, x_idx # had to swap them for correct logic
         return (x_idx,y_idx)
-    # def __handle_logic(self, idxs):
-    #     x, y = idxs
-    #     self.board[x][y] = Point((x,y), self.player)
-    #     print(self.board)
-    #     return self.check_victory()
+
     def __draw_victory_line(self):
         x_middle = GameScreen.__line_x_locations[1] * 0.5
         y_middle = GameScreen.__line_y_locations[1] * 0.5
@@ -167,44 +118,35 @@ class GameScreen:
         y2 = GameScreen.__line_x_locations[self.__victory_line_points[-1].x_idx] + y_middle
         x2 = GameScreen.__line_y_locations[self.__victory_line_points[-1].y_idx] + x_middle
         self.__draw_line(self.win, GameScreen.RED, x1, y1, x2, y2, 10)
-    # def make_move(self, x, y):
-    #     for idx, el in enumerate(GameScreen.__line_x_locations):
-    #         if el>=x:
-    #             x = GameScreen.__line_x_locations[idx-1]
-    #             break
-    #     for idx, el in enumerate(GameScreen.__line_y_locations):
-    #         if el>=y:
-    #             y = GameScreen.__line_x_locations[idx-1]
-    #             break
-    #     idxs = self.__convert_to_indices(x,y)
-    #     victory = self.__handle_logic(idxs)
-    #     if victory:
-    #         print("Victory")
-    #         self.__draw_victory_line()
-    #     if self.player=='X':
-    #         self.__draw_X(self.win, GameScreen.WHITE, x, y)
-    #     elif self.player=='O':
-    #         self.__draw_O(self.win, GameScreen.WHITE, x, y)
 
 
 
 # Helper functions
-def unpack(coords: tuple):
-    return str(coords[0]) + ',' + str(coords[1])
+def unpack(data: str):
+    data = data.split(',')
+    return (data[0], int(data[1]), int(data[2]), data[3])
 
 def pack(data):
     return str(data)
 
+def helper_listener(n):
+    global callback
+    while True:
+        callback= unpack(n.receive())
+        print(f"Callback: {callback}")
+
 # entry point
 def main():
+    global callback
+    callback = None
     n = Network()
     player = n.getInitialData()
+    threading.Thread(target=helper_listener, args=(n,)).start()
     print(f'I am player: {player}')
     screen = GameScreen(config.WIDTH, config.HEIGHT, player)
     screen.draw_screen()
     run = True
     while run:
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -212,17 +154,20 @@ def main():
             elif event.type == pygame.MOUSEBUTTONUP:
                 mouse = pygame.mouse.get_pos()
                 x, y = mouse
-                data = screen.convert_to_indices(x,y)
-                print(f"Sending.. {data}")
-                callback = n.send(pack(data))
-                if callback:
-                    print(f"Player: {player}")
-                    if player=='X':
-                        screen.draw_X(screen.win, screen.WHITE, x, y)
-                    else:
-                        screen.draw_O(screen.win, screen.WHITE, x, y)
+                idx_x, idx_y = screen.convert_to_indices(x,y)
+                data = (idx_x, idx_y, x, y) # sending idxs and mouse coords
+                n.send(pack(data))
+                if player=='X':
+                    screen.draw_X(screen.win, screen.WHITE, x, y)
+                else:
+                    screen.draw_O(screen.win, screen.WHITE, x, y)
+        if callback: # callback format (<other_players_move> <mouse_x> <mouse_y> <victory_status>)
+            if callback[0] == 'O':
+                screen.draw_O(screen.win, screen.WHITE, callback[1], callback[2])
+            else:
+                screen.draw_X(screen.win, screen.WHITE, callback[1], callback[2])
+            callback=None
 
-                print(callback)
 
         pygame.display.update()
 

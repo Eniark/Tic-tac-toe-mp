@@ -1,5 +1,5 @@
 import socket
-
+import threading
 class Network:
     def __init__(self, ip='192.168.0.113', port=5555, ENC_FORMAT = 'UTF-8'):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -19,9 +19,16 @@ class Network:
         except socket.error:
             pass
 
+    def receive(self):
+        try:
+            return self.client.recv(2048).decode()
+        except socket.error as e:
+            print(e)
+
+
     def send(self, data):
         try:
             self.client.send(data.encode(self.ENC_FORMAT))
-            return self.client.recv(2048).decode(self.ENC_FORMAT)
+            # return self.client.recv(2048).decode(self.ENC_FORMAT)
         except socket.error as e:
             print(e)

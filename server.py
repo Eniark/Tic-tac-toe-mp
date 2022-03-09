@@ -1,11 +1,11 @@
 import socket
 from _thread import start_new_thread
 import os
+import config
 
-# class Point for keeping coordinates? To draw winning line
+# class Point
 class Point:
     def __init__(self, indices: tuple[int, int], mark: str):
-        # self.x, self.y = coords
         self.x_idx, self.y_idx = indices
         self.mark = mark
 
@@ -14,7 +14,7 @@ class Point:
 
 # class for the game
 class Game:
-    def __init__(self, pl_mark="X", size=3):
+    def __init__(self, pl_mark="X", size=config.DEFAULT_SIZE):
         self.size = size
         self.board = [["" for i in range(self.size)] for j in range(self.size)]
         self.player = pl_mark
@@ -25,7 +25,6 @@ class Game:
         h_counter = 0
         v_counter = 0
         d_counter = 0
-        player = players[player]
         self.__victory_line_points = []
         for i in range(len(self.board)):
             for j in range(1, len(self.board)):
@@ -74,33 +73,12 @@ class Game:
                     return True
         return False
 
-    def __convert_to_indices(self, x, y):
-        step_x = Game.__line_x_locations[1]
-        step_y = Game.__line_y_locations[1]
-        counter = 0
-        x_idx = y_idx = 0
-        length = len(Game.__line_x_locations)
-        for i in range(length):
-
-            counter+=step_x
-            if counter>x:
-                x_idx = i
-                break
-
-        counter = 0
-        for i in range(length):
-            counter+=step_y
-            if counter>y:
-                y_idx = i
-                break
-
-        x_idx, y_idx = y_idx, x_idx # had to swap them for correct logic
-        return (x_idx, y_idx)
     def __handle_logic(self, x, y, player):
         if not self.board[x][y]:
             self.board[x][y] = Point((x,y), player)
             print(self.board)
             return True
+        print(self.board)
         return False
     def make_move(self, x, y, player):
 
@@ -126,49 +104,62 @@ except socket.error as e:
     print(e)
 
 
-amount_of_players = 2
-s.listen(2)
+AMOUNT_OF_PLAYERS = 2
+s.listen(AMOUNT_OF_PLAYERS)
 print('Waiting for connection. Server Started')
 
-
-players = ['X', 'O']
+players=['X','O']
+player_mouse_moves = { players[0]:[0,0],
+                       players[1]:[0,0]}
 
 # Helper functions
 def unpack(data):
     data = data[1:-1].split(', ')
-    return (int(data[0]), int(data[1]))
+    return (int(data[0]), int(data[1]), int(data[2]), int(data[3]))
 
 def pack(data):
     return str(data)
 
 player_turn_counter=0 # for future
+
 def threaded_client(conn, player):
-    global player_turn_counter
-    conn.send(str.encode(players[player]))
+    global player_turn_counter, player_mouse_moves
+    player=players[player]
+    conn.send(str.encode(player))
+
     reply = ''
     while True:
         try:
             data = conn.recv(2048).decode()
-            print(f"Receiving... {data}")
-            x, y = unpack(data)
-            # reply = data
+            print(f'Received.. {data}')
+            x, y, mouse_x, mouse_y = unpack(data)
 
             if not data:
                 print("Disconected")
                 break
             else:
-                res = game.make_move(x,y, players[player])
+                res = game.make_move(x,y, player)
+                player_mouse_moves[player] = [mouse_x, mouse_y]
+                print(player_mouse_moves)
                 if res:
+                    if player=='X':
+                        reply = "X,"+str(player_mouse_moves['X'])[1:-1]+','
+                    else:
+                        reply="O,"+str(player_mouse_moves['O'])[1:-1]+','
+
+                    reply += str(game.check_victory(player))
+
+                    if player=='X': ## hardcoded
+                        connections['O'].send(str.encode(pack(reply)))
+                    elif player=='O':
+                        connections['X'].send(str.encode(pack(reply)))
+                    else:
+                        print('Not your turn!')
+
                     player_turn_counter+=1 # fix in future, plz!!!
-                    reply = game.check_victory(player)
-                    print(reply)
-                    if player_turn_counter>=amount_of_players:
+                    print('Reply:', reply)
+                    if player_turn_counter>=AMOUNT_OF_PLAYERS:
                         player_turn_counter=0
-
-
-            #     if player==1:
-            #         reply =
-            conn.sendall(str.encode(pack(reply)))
         except socket.error as e:
             print(f"ERROR::{e}")
             break
@@ -179,8 +170,10 @@ def threaded_client(conn, player):
 
 currentPlayer = 0
 game = Game()
+connections = {}
 while True:
     conn, addr = s.accept()
+    connections[players[currentPlayer]]=conn
     print(f'Connected to: {addr}')
 
     start_new_thread(threaded_client, (conn, currentPlayer))

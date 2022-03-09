@@ -1,3 +1,4 @@
 WIDTH = 500
 HEIGHT = 500
+DEFAULT_SIZE = 3
 clientNumber = 0
