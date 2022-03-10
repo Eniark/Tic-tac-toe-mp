@@ -11,6 +11,7 @@ class GameScreen:
     GREEN = (0,255,0)
     BLUE = (0,0,255)
     YELLOW =  (255,255, 0)
+    LIGHT_YELLOW = (255, 238, 107)
     __line_x_locations = [0,]
     __line_y_locations = [0,]
 
@@ -19,7 +20,7 @@ class GameScreen:
         self.player = pl_mark
         self.is_victorious = False
         self.win = pygame.display.set_mode((scr_width, scr_height))
-        self.dimensions = (scr_width, scr_height)
+        self.dimensions = (scr_width - config.SIDEBAR, scr_height)
         pygame.display.set_caption("Client")
 
 
@@ -45,8 +46,13 @@ class GameScreen:
         y += GameScreen.__line_y_locations[1]/2
         pygame.draw.circle(win, color, (x,y), radius, line_width)
 
+
+    def __draw_sidebar(self):
+        pygame.draw.rect(self.win, GameScreen.LIGHT_YELLOW, (self.dimensions[0], 0, self.dimensions[0]+config.SIDEBAR, self.dimensions[1]))
+
     def draw_screen(self):
         self.win.fill(GameScreen.BLACK)
+        self.__draw_sidebar()
         amount_of_lines = self.size - 1
         line_colour = GameScreen.YELLOW
         for i in range(1, amount_of_lines + 1): # draw lines
@@ -70,19 +76,13 @@ class GameScreen:
 
 
     def __find_topleft_border(self, x, y):
-        print(GameScreen.__line_x_locations)
-        print(GameScreen.__line_y_locations)
-        print(type(x), type(y))
         for idx, el in enumerate(GameScreen.__line_x_locations):
             if el>=x:
                 x = GameScreen.__line_x_locations[idx-1]
-                print(f'found X.. {x}')
                 break
         for idx, el in enumerate(GameScreen.__line_y_locations):
             if el>=y:
                 y = GameScreen.__line_x_locations[idx-1]
-                print(f'found y.. {y}')
-
                 break
 
         return (x, y)
@@ -109,14 +109,14 @@ class GameScreen:
         x_idx, y_idx = y_idx, x_idx # had to swap them for correct logic
         return (x_idx,y_idx)
 
-    def __draw_victory_line(self):
+    def draw_victory_line(self, x_start, y_start, x_end, y_end):
         x_middle = GameScreen.__line_x_locations[1] * 0.5
         y_middle = GameScreen.__line_y_locations[1] * 0.5
-        y1 = GameScreen.__line_x_locations[self.__victory_line_points[0].x_idx] + y_middle
-        x1 = GameScreen.__line_y_locations[self.__victory_line_points[0].y_idx] + x_middle
+        y1 = GameScreen.__line_x_locations[x_start] + y_middle
+        x1 = GameScreen.__line_y_locations[y_start] + x_middle
 
-        y2 = GameScreen.__line_x_locations[self.__victory_line_points[-1].x_idx] + y_middle
-        x2 = GameScreen.__line_y_locations[self.__victory_line_points[-1].y_idx] + x_middle
+        y2 = GameScreen.__line_x_locations[x_end] + y_middle
+        x2 = GameScreen.__line_y_locations[y_end] + x_middle
         self.__draw_line(self.win, GameScreen.RED, x1, y1, x2, y2, 10)
 
 
@@ -124,7 +124,10 @@ class GameScreen:
 # Helper functions
 def unpack(data: str):
     data = data.split(',')
-    return (data[0], int(data[1]), int(data[2]), data[3])
+    if data[0]=='|==Victory==|':
+            # | status  | player |      x     |     y       | victory_x1  |  victory_y1 | victory_x2  |  victory_y2  |  turn_counter |
+        return (data[0],data[1], int(data[2]), int(data[3]), int(data[4]), int(data[5]), int(data[6]), int(data[7]), int(data[8]))
+    return (data[0],data[1], int(data[2]), int(data[3]), int(data[8]))
 
 def pack(data):
     return str(data)
@@ -138,9 +141,10 @@ def helper_listener(n):
 # entry point
 def main():
     global callback
-    callback = None
+    callback = []
     n = Network()
     player = n.getInitialData()
+    turn_counter = 0
     threading.Thread(target=helper_listener, args=(n,)).start()
     print(f'I am player: {player}')
     screen = GameScreen(config.WIDTH, config.HEIGHT, player)
@@ -154,18 +158,36 @@ def main():
             elif event.type == pygame.MOUSEBUTTONUP:
                 mouse = pygame.mouse.get_pos()
                 x, y = mouse
-                idx_x, idx_y = screen.convert_to_indices(x,y)
-                data = (idx_x, idx_y, x, y) # sending idxs and mouse coords
-                n.send(pack(data))
-                if player=='X':
-                    screen.draw_X(screen.win, screen.WHITE, x, y)
+                if x<screen.dimensions[0]:
+                    idx_x, idx_y = screen.convert_to_indices(x,y)
+                    data = (idx_x, idx_y, x, y) # sending idxs and mouse coords
+                    if turn_counter%2==0 and player=='X':
+                        screen.draw_X(screen.win, screen.WHITE, x, y)
+                    elif turn_counter%2==1 and player=='O':
+                        screen.draw_O(screen.win, screen.WHITE, x, y)
+                    else:
+                        print("ERROR!") # ??
+                        continue
+                    n.send(pack(data))
+
+        if callback:
+            turn_counter= callback[-1]
+            print(f"turn: {turn_counter}")
+            if callback[0]=='|==Data==|':
+                if callback[1] == 'O':
+                    screen.draw_O(screen.win, screen.WHITE, callback[2], callback[3])
                 else:
-                    screen.draw_O(screen.win, screen.WHITE, x, y)
-        if callback: # callback format (<other_players_move> <mouse_x> <mouse_y> <victory_status>)
-            if callback[0] == 'O':
-                screen.draw_O(screen.win, screen.WHITE, callback[1], callback[2])
-            else:
-                screen.draw_X(screen.win, screen.WHITE, callback[1], callback[2])
+                    screen.draw_X(screen.win, screen.WHITE, callback[2], callback[3])
+            elif callback[0]=='|==Victory==|':
+                if callback[1] == 'O':
+                    screen.draw_O(screen.win, screen.WHITE, callback[2], callback[3])
+                else:
+                    screen.draw_X(screen.win, screen.WHITE, callback[2], callback[3])
+                screen.draw_victory_line(callback[4],callback[5],callback[6],callback[7])
+            # turn receiver?
+            elif callback[0]=='|==Error==|':
+                pass
+
             callback=None
 
 

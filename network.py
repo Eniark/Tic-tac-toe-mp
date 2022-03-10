@@ -1,5 +1,5 @@
 import socket
-import threading
+
 class Network:
     def __init__(self, ip='192.168.0.113', port=5555, ENC_FORMAT = 'UTF-8'):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
