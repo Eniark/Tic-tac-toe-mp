@@ -10,15 +10,13 @@ class Point:
         self.mark = mark
 
     def __repr__(self):
-        return self.mark
+        return str((self.x_idx, self.y_idx))
 
 # class for the game
 class Game:
-    def __init__(self, pl_mark="X", size=config.DEFAULT_SIZE):
+    def __init__(self, size=config.DEFAULT_SIZE):
         self.size = size
         self.board = [["" for i in range(self.size)] for j in range(self.size)]
-        self.player = pl_mark
-        self.is_victorious = False
 
 
     def check_victory(self, player):
@@ -52,7 +50,6 @@ class Game:
             self.victory_line_points = []
             v_counter = 0
 
-
         # diagonals
         for j in range(1, len(self.board)):
             self.victory_line_points.append(self.board[j-1][j-1])
@@ -77,17 +74,15 @@ class Game:
     def __handle_logic(self, x, y, player):
         if not self.board[x][y]:
             self.board[x][y] = Point((x,y), player)
-            print(self.board)
             return True
-        print(self.board)
         return False
     def make_move(self, x, y, player): # merge with __handle_logic?
         return self.__handle_logic(x, y, player)
 
 
 
-server = "192.168.0.113"
-port = 5555 # open port
+server = "192.168.0.113" # hosts ip
+port = 5555
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -96,7 +91,7 @@ try:
 except socket.error as e:
     print(e)
 
-
+turn_counter=0
 AMOUNT_OF_PLAYERS = 2
 s.listen(AMOUNT_OF_PLAYERS)
 print('Waiting for connection. Server Started')
@@ -113,19 +108,26 @@ def unpack(data):
 def pack(data):
     return str(data)
 
-player_turn_counter=0 # for future
 
-def threaded_client(conn, player):
-    global player_turn_counter, player_mouse_moves
+def threaded_client(conn, player:int):
+    """
+    :param conn: Socket object connection
+    :param player: player number
+    Threaded connection to socket objects
+    """
+    global turn_counter, player_mouse_moves, currentPlayer
     player=players[player]
     conn.send(str.encode(player))
+    if currentPlayer%2==0:
+        connections['X'].send(str.encode(pack(True)))
+        connections['O'].send(str.encode(pack(True)))
     parameters = 9
     reply_template = [None for _ in range(parameters)]
+    turn_updater_reply = None
     while True:
         try:
             data = conn.recv(2048).decode()
             x, y, mouse_x, mouse_y = unpack(data)
-
             if not data:
                 print("Disconected")
                 break
@@ -144,51 +146,67 @@ def threaded_client(conn, player):
                         reply_template[2] = x
                         reply_template[3] = y
 
-
                     victory= game.check_victory(player)
                     if victory:
                         victory_x_start, victory_y_start = game.victory_line_points[0].x_idx, game.victory_line_points[0].y_idx
-                        victory_x_end, victory_y_end = game.victory_line_points[2].x_idx, game.victory_line_points[2].y_idx
-                        reply_template[0] = "|==Victory==|"
+                        victory_x_end, victory_y_end = game.victory_line_points[-1].x_idx, game.victory_line_points[-1].y_idx
+                        print(game.victory_line_points)
+                        reply_template[0] = "Victory"
                         reply_template[4]= victory_x_start
                         reply_template[5]= victory_y_start
                         reply_template[6]= victory_x_end
                         reply_template[7]= victory_y_end
                     else:
-                        reply_template[0] = "|==Data==|"
+                        reply_template[0] = "Data"
 
-
-                    player_turn_counter+=1
-                    reply_template[8] = player_turn_counter
+                    turn_counter+=1
+                    reply_template[8] = turn_counter
                     reply_template = list(map(str, reply_template))
                     reply = ','.join(reply_template)
-                    print(player_turn_counter)
                     try:
-                        if reply_template[0]=="|==Data==|":
+                        if reply_template[0]=="Data":
                             if player=='X': # forwarding messages to clients
                                 connections['O'].send(str.encode(pack(reply)))
                             elif player=='O':
                                 connections['X'].send(str.encode(pack(reply)))
-                            else:
-                                print('Not your turn!')
 
-                        elif reply_template[0]=="|==Victory==|":
+                        elif reply_template[0]=="Victory":
                             # sending to all clients the victory coords
-                            connections['O'].send(str.encode(pack(reply)))
-                            connections['X'].send(str.encode(pack(reply)))
-                        # Create turn updater??
+                            if player=='X':
+                                connections['X'].send(str.encode(pack(reply)))
+                                # modifying reply
+                                reply = reply.split(',')
+                                reply[0] = 'Loss'
+                                reply = ','.join(reply)
+                                connections['O'].send(str.encode(pack(reply)))
+
+                            elif player=='O':
+                                connections['O'].send(str.encode(pack(reply)))
+                                # modifying reply
+                                reply = reply.split(',')
+                                reply[0] = 'Loss'
+                                reply = ','.join(reply)
+                                connections['X'].send(str.encode(pack(reply)))
+                        # creating reply for turn updater
+                        turn_updater_reply = [None for _ in range(parameters)] # turn updater for each client
+                        turn_updater_reply[-1] = turn_counter
+                        turn_updater_reply[2], turn_updater_reply[3] = 0, 0
+                        turn_updater_reply = list(map(str, turn_updater_reply))
+                        turn_updater_reply = ','.join(turn_updater_reply)
+
+                        connections['X'].send(str.encode(pack(turn_updater_reply)))
+                        connections['O'].send(str.encode(pack(turn_updater_reply)))
 
                     except KeyError:
                             print("|==ERROR==|: Not enough players!")
                     reply_template = [None for _ in range(parameters)]
-
-                    print('Reply:', reply)
         except socket.error as e:
             print(f"ERROR::{e}")
             break
 
 
     print('Lost connection')
+    currentPlayer-=1
     conn.close()
 
 currentPlayer = 0
@@ -198,6 +216,6 @@ while True:
     conn, addr = s.accept()
     connections[players[currentPlayer]]=conn
     print(f'Connected to: {addr}')
-
     start_new_thread(threaded_client, (conn, currentPlayer))
     currentPlayer+=1
+
