@@ -64,7 +64,8 @@ class Game:
         d_counter = 0
         for j in range(1, len(self.board)):
             self.victory_line_points.append(self.board[j-1][len(self.board) - j])
-            if isinstance(self.board[j-1][len(self.board) - j], Point) and isinstance(self.board[j][len(self.board) - j - 1], Point):
+            if isinstance(self.board[j-1][len(self.board) - j], Point) and isinstance(self.board[j][len(self.board) - j - 1], Point) \
+                and self.board[j-1][len(self.board) - j].mark==self.board[j][len(self.board) - j - 1].mark==player:
                 d_counter+=1
                 if d_counter==self.size-1:
                     self.victory_line_points.append(self.board[j][len(self.board) - j - 1])
@@ -150,7 +151,6 @@ def threaded_client(conn, player:int):
                     if victory:
                         victory_x_start, victory_y_start = game.victory_line_points[0].x_idx, game.victory_line_points[0].y_idx
                         victory_x_end, victory_y_end = game.victory_line_points[-1].x_idx, game.victory_line_points[-1].y_idx
-                        print(game.victory_line_points)
                         reply_template[0] = "Victory"
                         reply_template[4]= victory_x_start
                         reply_template[5]= victory_y_start
